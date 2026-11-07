@@ -400,15 +400,21 @@ def _unpack_array(dlt: DLTensor, dtype=None):
                         f"Could not convert DLPack tensor with shape {shape} to Warp array with dtype={dtype}, because the source inner strides are not contiguous"
                     )
                 stride *= dtype_shape[-i - 1]
-            strides = tuple(strides[:-dtype_dims]) or (itemsize,)
+            strides = tuple(strides[:-dtype_dims])
 
-        shape = tuple(shape[:-dtype_dims]) or (1,)
+        shape = tuple(shape[:-dtype_dims])
 
     elif not dtype_is_compatible(dlt.dtype, dtype):
         # incompatible dtype requested
         raise RuntimeError(
             f"Incompatible data types: DLPack {_dtype_name(dlt.dtype)} and Warp {warp._src.types.type_repr(dtype)}"
         )
+
+    # Warp arrays have at least one dimension, so a tensor without outer dimensions
+    # (a 0-d tensor or a single vector/matrix) becomes a contiguous one-element array
+    if not shape:
+        shape = (1,)
+        strides = None
 
     a = warp._src.types.array(
         ptr=dlt.data, dtype=dtype, shape=shape, strides=strides, copy=False, device=device, pinned=pinned

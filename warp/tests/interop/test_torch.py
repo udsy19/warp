@@ -702,6 +702,44 @@ def test_from_torch_zero_strides(test, device):
     assert_np_equal(a_contiguous.numpy(), t.cpu().numpy())
 
 
+def test_from_torch_no_outer_dims(test, device):
+    """Tensors without outer dimensions become contiguous one-element arrays."""
+    torch = _import_torch()
+
+    torch_device = wp.device_to_torch(device)
+
+    # 0-d tensor
+    t = torch.tensor(3.0, device=torch_device, requires_grad=True)
+    a = wp.from_torch(t)
+    test.assertEqual(a.ptr, t.data_ptr())
+    test.assertEqual(a.shape, (1,))
+    test.assertEqual(a.strides, (4,))
+    assert_np_equal(a.numpy(), np.array([3.0], dtype=np.float32))
+    test.assertEqual(t.grad.shape, t.shape)
+    test.assertEqual(a.grad.ptr, t.grad.data_ptr())
+
+    ctype = wp.from_torch(t, return_ctype=True)
+    test.assertEqual(ctype.ndim, 1)
+    test.assertEqual(ctype.shape[0], 1)
+
+    # single vector
+    t = torch.arange(3, dtype=torch.float32, device=torch_device, requires_grad=True)
+    a = wp.from_torch(t, dtype=wp.vec3)
+    test.assertEqual(a.shape, (1,))
+    test.assertEqual(a.strides, (12,))
+    test.assertTrue(a.is_contiguous)
+    assert_np_equal(a.numpy(), np.array([[0.0, 1.0, 2.0]], dtype=np.float32))
+    test.assertEqual(t.grad.shape, t.shape)
+    test.assertEqual(a.grad.ptr, t.grad.data_ptr())
+
+    # single matrix
+    t = torch.arange(4, dtype=torch.float32, device=torch_device).reshape((2, 2))
+    a = wp.from_torch(t, dtype=wp.mat22)
+    test.assertEqual(a.shape, (1,))
+    test.assertEqual(a.strides, (16,))
+    test.assertTrue(a.is_contiguous)
+
+
 def test_torch_mgpu_from_torch(test, device):
     torch = _import_torch()
 
@@ -1489,6 +1527,13 @@ else:
             TestTorch,
             "test_from_torch_zero_strides",
             test_from_torch_zero_strides,
+            devices=torch_candidate_devices,
+            device_check=_check_torch_device,
+        )
+        add_function_test(
+            TestTorch,
+            "test_from_torch_no_outer_dims",
+            test_from_torch_no_outer_dims,
             devices=torch_candidate_devices,
             device_check=_check_torch_device,
         )

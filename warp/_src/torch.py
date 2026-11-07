@@ -248,8 +248,14 @@ def from_torch(
                 "because the source inner strides are not contiguous"
             )
         # trim shape and strides
-        shape = tuple(shape[:-dtype_dims]) or (1,)
-        strides = tuple(strides[:-dtype_dims]) or (ctype_size,)
+        shape = tuple(shape[:-dtype_dims])
+        strides = tuple(strides[:-dtype_dims])
+
+    # Warp arrays have at least one dimension, so a tensor without outer dimensions
+    # (a 0-d tensor or a single vector/matrix) becomes a contiguous one-element array
+    if not shape:
+        shape = (1,)
+        strides = (warp._src.types.type_size_in_bytes(dtype),)
 
     # gradient
     # - if return_ctype is False, we set `grad` to a wp.array or None
@@ -290,7 +296,7 @@ def from_torch(
             # allocate a zero-filled gradient if it doesn't exist
             # Note: we use Warp to allocate the shared gradient with compatible strides
             grad = warp.zeros(dtype=dtype, shape=shape, strides=strides, device=device_from_torch(t.device))
-            t.grad = to_torch(grad, requires_grad=False)
+            t.grad = to_torch(grad, requires_grad=False).reshape(t.shape)
             grad_ptr = grad.ptr
 
     if return_ctype:

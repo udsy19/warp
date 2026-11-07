@@ -412,6 +412,29 @@ def test_dlpack_torch_to_warp(test, device):
     assert_np_equal(a.numpy(), t.cpu().numpy())
 
 
+def test_dlpack_torch_to_warp_no_outer_dims(test, device):
+    """Tensors without outer dimensions become contiguous one-element arrays."""
+    torch = _import_torch_with_dlpack()
+
+    torch_device = wp.device_to_torch(device)
+
+    # 0-d tensor
+    t = torch.tensor(3.0, device=torch_device)
+    a = wp.from_dlpack(t)
+    test.assertEqual(a.ptr, t.data_ptr())
+    test.assertEqual(a.shape, (1,))
+    test.assertEqual(a.strides, (4,))
+    assert_np_equal(a.numpy(), np.array([3.0], dtype=np.float32))
+
+    # single vector
+    t = torch.arange(3, dtype=torch.float32, device=torch_device)
+    a = wp.from_dlpack(t, dtype=wp.vec3)
+    test.assertEqual(a.shape, (1,))
+    test.assertEqual(a.strides, (12,))
+    test.assertTrue(a.is_contiguous)
+    assert_np_equal(a.numpy(), np.array([[0.0, 1.0, 2.0]], dtype=np.float32))
+
+
 def test_dlpack_torch_to_warp_v2(test, device):
     """Convert Torch tensors to Warp with the DLPack protocol."""
     torch = _import_torch_with_dlpack()
@@ -794,6 +817,13 @@ else:
             TestDLPack,
             "test_dlpack_torch_to_warp_v2",
             test_dlpack_torch_to_warp_v2,
+            devices=torch_candidate_devices,
+            device_check=_check_torch_device,
+        )
+        add_function_test(
+            TestDLPack,
+            "test_dlpack_torch_to_warp_no_outer_dims",
+            test_dlpack_torch_to_warp_no_outer_dims,
             devices=torch_candidate_devices,
             device_check=_check_torch_device,
         )
